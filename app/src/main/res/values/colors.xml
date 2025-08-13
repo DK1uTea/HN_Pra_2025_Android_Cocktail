@@ -15,4 +15,10 @@
     <color name="orange">#FFA500</color>
     <color name="teal">#009688</color>
     <color name="gray">#666666</color>
+
+    <!-- Profile colors -->
+    <color name="textColorPrimary">#212121</color>
+    <color name="textColorSecondary">#757575</color>
+    <color name="profile_button_green">#1EB181</color>
+    <color name="rating_badge_pink">#FF4081</color>
 </resources>

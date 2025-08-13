@@ -44,4 +44,14 @@
     <string name="Start">Start</string>
     <string name="Accept_condition">Accept terms &amp; Condition</string>
     <string name="Cre_account">Create an account</string>
+
+    <!-- Profile strings -->
+    <string name="profile_title">User Profile</string>
+    <string name="user_name">John Doe</string>
+    <string name="user_bio">Cocktail enthusiast and mixologist</string>
+    <string name="my_recipe_button">My Recipe</string>
+    <string name="history_button">History</string>
+    <string name="desc_profile_image">Profile Picture</string>
+    <string name="desc_cocktail_image">Cocktail Image</string>
+    <string name="title_profile">Profile</string>
 </resources>

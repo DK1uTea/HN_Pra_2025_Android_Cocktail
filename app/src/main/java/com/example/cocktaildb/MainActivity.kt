@@ -25,6 +25,7 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
                 R.id.navigation_home,
                 R.id.navigation_dashboard,
                 R.id.navigation_notifications,
+                R.id.navigation_profile
             )
         )
         setupActionBarWithNavController(navController, appBarConfiguration)
@@ -35,4 +36,3 @@ class MainActivity : BaseActivity<ActivityMainBinding>() {
         // TODO: Initialize data if needed
     }
 }
-
