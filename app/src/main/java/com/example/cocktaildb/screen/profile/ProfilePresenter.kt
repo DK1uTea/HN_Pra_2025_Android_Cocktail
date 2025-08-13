@@ -48,8 +48,8 @@ class ProfilePresenter(
     }
 
     override fun onMyRecipesClicked() {
-        // Handle My Cocktails button click
-        // This would typically navigate to a user's created cocktails screen
+        // Navigate to My Recipes screen
+        view?.navigateToMyRecipes()
     }
 
     override fun onHistoryClicked() {

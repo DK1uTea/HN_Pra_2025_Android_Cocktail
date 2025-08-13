@@ -83,6 +83,12 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>(), ProfileContract.
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
+    override fun navigateToMyRecipes() {
+        // Navigate to the MyRecipe screen using the Navigation Component
+        val navController = androidx.navigation.Navigation.findNavController(requireActivity(), R.id.nav_host_fragment_activity_main)
+        navController.navigate(R.id.navigation_my_recipe)
+    }
+
     /**
      * Adapter for the profile RecyclerView that displays both header and cocktail items
      */

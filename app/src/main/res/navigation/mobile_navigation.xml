@@ -28,4 +28,10 @@
         android:name="com.example.cocktaildb.screen.profile.ProfileFragment"
         android:label="@string/title_profile"
         tools:layout="@layout/fragment_profile" />
+
+    <fragment
+        android:id="@+id/navigation_my_recipe"
+        android:name="com.example.cocktaildb.screen.myrecipe.MyRecipeFragment"
+        android:label="@string/title_my_recipe"
+        tools:layout="@layout/fragment_my_recipe" />
 </navigation>

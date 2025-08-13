@@ -44,6 +44,7 @@
     <string name="Start">Start</string>
     <string name="Accept_condition">Accept terms &amp; Condition</string>
     <string name="Cre_account">Create an account</string>
+    <string name="title_my_recipe">My Recipes</string>
 
     <!-- Profile strings -->
     <string name="profile_title">User Profile</string>

@@ -23,6 +23,11 @@ interface ProfileContract {
         fun showUserCocktails(cocktails: List<Cocktail>)
 
         /**
+         * Navigate to My Recipes screen
+         */
+        fun navigateToMyRecipes()
+
+        /**
          * Show loading indicator
          */
         fun displayLoading(show: Boolean)
