@@ -111,7 +111,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>(), ProfileContract.
         val dataSource = CocktailLocalDataSource()
         val repository = CocktailRepository(dataSource)
         val authRepository = AuthRepository(requireContext())
-        presenter = ProfilePresenter(repository, authRepository)
+        presenter = ProfilePresenter(repository, authRepository, requireContext())
         presenter.setView(this)
     }
 
@@ -141,7 +141,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>(), ProfileContract.
                 R.id.nav_host_fragment_activity_main
             )
             navController.navigate(R.id.navigation_my_recipe)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Fallback in case navigation fails
             Toast.makeText(
                 context,
@@ -159,7 +159,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>(), ProfileContract.
                 R.id.nav_host_fragment_activity_main
             )
             navController.navigate(R.id.navigation_history)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Fallback in case navigation fails
             Toast.makeText(
                 context,
@@ -201,7 +201,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>(), ProfileContract.
         // Add to history first
         try {
             com.example.cocktaildb.screen.history.HistoryPresenter.addToHistory(requireContext(), cocktail)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             // Handle error silently
         }
         

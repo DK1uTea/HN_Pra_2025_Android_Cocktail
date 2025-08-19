@@ -1,14 +1,19 @@
 package com.example.cocktaildb.screen.favorites
 
+import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import com.example.cocktaildb.data.model.Cocktail
 import com.example.cocktaildb.data.model.Favorite
 import com.example.cocktaildb.data.repository.CocktailRepository
 import com.example.cocktaildb.data.service.FavoriteFirebaseService
 import com.google.firebase.auth.FirebaseAuth
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.*
+import androidx.core.content.edit
 
-class FavoritesPresenter : FavoritesContract.Presenter {
+class FavoritesPresenter(private val context: Context) : FavoritesContract.Presenter {
 
     private var view: FavoritesContract.View? = null
     private val favoriteFirebaseService = FavoriteFirebaseService()
@@ -20,12 +25,45 @@ class FavoritesPresenter : FavoritesContract.Presenter {
     private var cachedFavorites: List<Cocktail>? = null
     private var isLoading = false
 
+    // Local cache for offline support
+    private val prefs: SharedPreferences = context.getSharedPreferences("favorites_cache", Context.MODE_PRIVATE)
+    private val gson = Gson()
+
+    private fun cacheKey(uid: String) = "favorites_" + uid
+
+    private fun loadFavoritesFromCache(uid: String): List<Cocktail> {
+        return try {
+            val json = prefs.getString(cacheKey(uid), "[]")
+            val type = object : TypeToken<List<Cocktail>>() {}.type
+            gson.fromJson<List<Cocktail>>(json, type) ?: emptyList()
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun saveFavoritesToCache(uid: String, cocktails: List<Cocktail>) {
+        try {
+            prefs.edit { putString(cacheKey(uid), gson.toJson(cocktails)) }
+        } catch (_: Exception) {
+            // ignore
+        }
+    }
+
     override fun setView(view: FavoritesContract.View?) {
         this.view = view
         // Show cached data only if we're not currently loading
         if (!isLoading) {
             cachedFavorites?.let { favorites ->
                 view?.displayFavorites(favorites)
+            } ?: run {
+                // Try to show cached from disk if available
+                auth.currentUser?.uid?.let { uid ->
+                    val cached = loadFavoritesFromCache(uid)
+                    if (cached.isNotEmpty()) {
+                        this.cachedFavorites = cached
+                        view?.displayFavorites(cached)
+                    }
+                }
             }
         }
     }
@@ -60,6 +98,13 @@ class FavoritesPresenter : FavoritesContract.Presenter {
 
         Log.d(TAG, "loadFavorites: Loading favorites for user ${currentUser.uid}")
 
+        // Immediately try to show cached data for better UX/offline
+        val diskCached = loadFavoritesFromCache(currentUser.uid)
+        if (diskCached.isNotEmpty()) {
+            cachedFavorites = diskCached
+            view?.displayFavorites(diskCached)
+        }
+
         // Cancel any existing job before starting a new one
         presenterJob?.cancel()
 
@@ -78,6 +123,8 @@ class FavoritesPresenter : FavoritesContract.Presenter {
                     }
 
                     cachedFavorites = cocktails
+                    saveFavoritesToCache(currentUser.uid, cocktails)
+
                     view?.displayLoading(false)
                     if (cocktails.isEmpty()) {
                         view?.displayEmptyState()
@@ -90,7 +137,15 @@ class FavoritesPresenter : FavoritesContract.Presenter {
             } catch (e: Exception) {
                 Log.e(TAG, "Error loading favorites", e)
                 view?.displayLoading(false)
-                view?.displayError("Failed to load favorites: ${e.message}")
+                // Fallback to cache if available
+                val cached = loadFavoritesFromCache(currentUser.uid)
+                if (cached.isNotEmpty()) {
+                    cachedFavorites = cached
+                    view?.displayFavorites(cached)
+                } else {
+                    view?.displayEmptyState()
+                    view?.displayError("Failed to load favorites: ${e.message}")
+                }
             } finally {
                 isLoading = false
             }
@@ -115,7 +170,7 @@ class FavoritesPresenter : FavoritesContract.Presenter {
 
                 if (result.isSuccess) {
                     view?.showFavoriteAdded(cocktail)
-                    // Reload favorites to update the UI
+                    // Reload favorites to update the UI and cache
                     loadFavorites()
                 } else {
                     view?.displayError("Failed to add to favorites")
@@ -144,7 +199,7 @@ class FavoritesPresenter : FavoritesContract.Presenter {
 
                     if (result.isSuccess && result.getOrNull() == true) {
                         view?.showFavoriteRemoved(cocktail)
-                        // Reload favorites to update the UI
+                        // Reload favorites to update the UI and cache
                         loadFavorites()
                     } else {
                         view?.displayError("Failed to remove from favorites")

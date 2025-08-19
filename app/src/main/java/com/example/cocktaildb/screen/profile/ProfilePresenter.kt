@@ -1,18 +1,27 @@
 package com.example.cocktaildb.screen.profile
 
+import android.annotation.SuppressLint
 import android.os.AsyncTask
+import android.content.Context
+import android.content.SharedPreferences
 import com.example.cocktaildb.data.model.Cocktail
+import com.example.cocktaildb.data.model.User
 import com.example.cocktaildb.data.repository.AuthRepository
 import com.example.cocktaildb.data.repository.CocktailRepository
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.gson.Gson
+import androidx.core.content.edit
 
 
 class ProfilePresenter(
     private val cocktailRepository: CocktailRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val context: Context
 ) : ProfileContract.Presenter {
 
     private var view: ProfileContract.View? = null
+    private val prefs: SharedPreferences by lazy { context.getSharedPreferences("user_profile_cache", Context.MODE_PRIVATE) }
+    private val gson = Gson()
 
     override fun setView(view: ProfileContract.View?) {
         this.view = view
@@ -49,44 +58,42 @@ class ProfilePresenter(
                     .addOnSuccessListener { document ->
                         view?.displayLoading(false)
                         if (document != null && document.exists()) {
-                            // Change user data to user object
-                            val userData = document.data
-                            if (userData != null) {
-                                val userName = userData["name"] as? String ?: "User"
-                                val userEmail = userData["email"] as? String ?: ""
-                                val profileImage = userData["profileImage"] as? String
+                            val user = document.toObject(User::class.java)
+                            if (user != null) {
+                                // Cache the user profile locally
+                                try {
+                                    prefs.edit { putString(uid, gson.toJson(user)) }
+                                } catch (_: Exception) {}
 
                                 view?.showUserProfile(
-                                    userName = userName,
-                                    userBio = userEmail,
-                                    profileImageUrl = profileImage
+                                    userName = user.name.ifBlank { "User" },
+                                    userBio = user.email,
+                                    profileImageUrl = user.profileImage
                                 )
                             } else {
-                                // if user data is null, show default profile
-                                view?.showUserProfile(
-                                    userName = "User",
-                                    userBio = "No profile information",
-                                    profileImageUrl = null
-                                )
+                                showDefaultProfile()
                             }
                         } else {
-                            // if document does not exist, show default profile
-                            view?.showUserProfile(
-                                userName = "User",
-                                userBio = "No profile information",
-                                profileImageUrl = null
-                            )
+                            showDefaultProfile()
                         }
                     }
                     .addOnFailureListener { e ->
                         view?.displayLoading(false)
+                        // Try to load from cache on failure/offline
+                        val cachedJson = prefs.getString(uid, null)
+                        if (cachedJson != null) {
+                            try {
+                                val cachedUser = gson.fromJson(cachedJson, User::class.java)
+                                view?.showUserProfile(
+                                    userName = cachedUser.name.ifBlank { "User" },
+                                    userBio = cachedUser.email,
+                                    profileImageUrl = cachedUser.profileImage
+                                )
+                                return@addOnFailureListener
+                            } catch (_: Exception) {}
+                        }
                         view?.displayError("Error loading profile: ${e.message}")
-                        // Display default profile information on error
-                        view?.showUserProfile(
-                            userName = "User",
-                            userBio = "Could not load profile",
-                            profileImageUrl = null
-                        )
+                        showDefaultProfile()
                     }
             } catch (e: Exception) {
                 view?.displayLoading(false)
@@ -111,8 +118,6 @@ class ProfilePresenter(
 
     override fun loadUserCocktails() {
         view?.displayLoading(true)
-
-        // Using AsyncTask instead of Coroutines
         @Suppress("DEPRECATION")
         CocktailLoadTask().execute()
     }
@@ -141,6 +146,7 @@ class ProfilePresenter(
     }
 
 
+    @SuppressLint("StaticFieldLeak")
     @Suppress("DEPRECATION")
     private inner class CocktailLoadTask : AsyncTask<Void, Void, List<Cocktail>>() {
 
@@ -164,6 +170,15 @@ class ProfilePresenter(
             view?.displayLoading(false)
             view?.displayError("Failed to load cocktails")
         }
+    }
+
+
+    private fun showDefaultProfile() {
+        view?.showUserProfile(
+            userName = "User",
+            userBio = "No profile information",
+            profileImageUrl = null
+        )
     }
 
 

@@ -16,7 +16,7 @@ import com.example.cocktaildb.utils.base.BaseFragment
 
 class FavoritesFragment : BaseFragment<FragmentFavoritesBinding>(), FavoritesContract.View {
 
-    private val presenter = FavoritesPresenter()
+    private lateinit var presenter: FavoritesPresenter
     private lateinit var favoritesAdapter: FavoritesAdapter
 
     override fun inflateViewBinding(inflater: LayoutInflater): FragmentFavoritesBinding {
@@ -28,6 +28,7 @@ class FavoritesFragment : BaseFragment<FragmentFavoritesBinding>(), FavoritesCon
     }
 
     override fun initData() {
+        presenter = FavoritesPresenter(requireContext())
         presenter.setView(this)
         presenter.loadFavorites()
     }
@@ -45,12 +46,10 @@ class FavoritesFragment : BaseFragment<FragmentFavoritesBinding>(), FavoritesCon
 
     private fun setupRecyclerView() {
         // Initialize adapter with presenter and NavController
-        favoritesAdapter = FavoritesAdapter(presenter, findNavController())
-
+        // Note: presenter will be initialized in initData()
+        // We'll set the adapter after presenter is available
         viewBinding.favoritesRecyclerView.apply {
             layoutManager = GridLayoutManager(context, 2)
-            adapter = favoritesAdapter
-
             // Add spacing between grid items using ItemDecoration
             val spacingInPixels = resources.getDimensionPixelSize(R.dimen.dp_8)
             addItemDecoration(object : RecyclerView.ItemDecoration() {
@@ -94,6 +93,11 @@ class FavoritesFragment : BaseFragment<FragmentFavoritesBinding>(), FavoritesCon
     }
 
     override fun displayFavorites(favorites: List<Cocktail>) {
+        // Ensure adapter is initialized with presenter
+        if (!::favoritesAdapter.isInitialized) {
+            favoritesAdapter = FavoritesAdapter(presenter, findNavController())
+            viewBinding.favoritesRecyclerView.adapter = favoritesAdapter
+        }
         viewBinding.loadingProgressBar.visibility = View.GONE
         viewBinding.emptyStateView.visibility = if (favorites.isEmpty()) View.VISIBLE else View.GONE
         viewBinding.favoritesRecyclerView.visibility = if (favorites.isEmpty()) View.GONE else View.VISIBLE
