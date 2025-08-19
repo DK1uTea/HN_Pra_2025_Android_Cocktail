@@ -8,6 +8,7 @@ import androidx.core.app.ActivityOptionsCompat
 import com.example.cocktaildb.databinding.ActivityStartBinding
 import com.example.cocktaildb.screen.auth.SignInActivity
 import android.view.animation.AnimationUtils
+import com.example.cocktaildb.data.repository.AuthRepository
 
 class StartActivity : AppCompatActivity() {
 
@@ -18,6 +19,13 @@ class StartActivity : AppCompatActivity() {
         binding = ActivityStartBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // If already authenticated (Firebase persists session), skip auth screens
+        val authRepository = AuthRepository(this)
+        if (authRepository.isUserLoggedIn()) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
         // Theme already hides action bar
 
         // Start animations after view is laid out
