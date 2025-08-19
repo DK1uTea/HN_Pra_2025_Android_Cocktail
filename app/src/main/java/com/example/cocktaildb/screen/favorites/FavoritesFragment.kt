@@ -29,26 +29,18 @@ class FavoritesFragment : BaseFragment<FragmentFavoritesBinding>(), FavoritesCon
 
     override fun initData() {
         presenter.setView(this)
-        presenter.onStart()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // Ensure presenter has a view reference before loading
-        presenter.setView(this)
-        // Force reload favorites
         presenter.loadFavorites()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        // Clear view reference to avoid memory leaks
-        presenter.setView(null)
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         presenter.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Reload favorites when returning from other screens
+        presenter.loadFavorites()
     }
 
     private fun setupRecyclerView() {
@@ -96,28 +88,27 @@ class FavoritesFragment : BaseFragment<FragmentFavoritesBinding>(), FavoritesCon
 
     // Implement FavoritesContract.View methods with names that don't conflict with BaseFragment
     override fun displayLoading(show: Boolean) {
-        if (show) {
-            super.showLoading()
-            viewBinding.favoritesRecyclerView.visibility = View.GONE
-            viewBinding.emptyStateView.visibility = View.GONE
-        } else {
-            super.hideLoading()
-        }
+        viewBinding.loadingProgressBar.visibility = if (show) View.VISIBLE else View.GONE
+        viewBinding.favoritesRecyclerView.visibility = if (show) View.GONE else View.VISIBLE
+        viewBinding.emptyStateView.visibility = View.GONE
     }
 
     override fun displayFavorites(favorites: List<Cocktail>) {
-        viewBinding.favoritesRecyclerView.visibility = View.VISIBLE
-        viewBinding.emptyStateView.visibility = View.GONE
+        viewBinding.loadingProgressBar.visibility = View.GONE
+        viewBinding.emptyStateView.visibility = if (favorites.isEmpty()) View.VISIBLE else View.GONE
+        viewBinding.favoritesRecyclerView.visibility = if (favorites.isEmpty()) View.GONE else View.VISIBLE
         favoritesAdapter.submitList(favorites)
     }
 
     override fun displayEmptyState() {
+        viewBinding.loadingProgressBar.visibility = View.GONE
         viewBinding.favoritesRecyclerView.visibility = View.GONE
         viewBinding.emptyStateView.visibility = View.VISIBLE
     }
 
     override fun displayError(message: String) {
-        super.showError(message)
+        viewBinding.loadingProgressBar.visibility = View.GONE
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
     }
 
     override fun showFavoriteAdded(cocktail: Cocktail) {

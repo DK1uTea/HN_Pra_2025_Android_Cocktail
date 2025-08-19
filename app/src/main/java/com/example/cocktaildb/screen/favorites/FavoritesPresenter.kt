@@ -2,6 +2,7 @@ package com.example.cocktaildb.screen.favorites
 
 import android.util.Log
 import com.example.cocktaildb.data.model.Cocktail
+import com.example.cocktaildb.data.model.Favorite
 import com.example.cocktaildb.data.repository.CocktailRepository
 import com.example.cocktaildb.data.service.FavoriteFirebaseService
 import com.google.firebase.auth.FirebaseAuth
@@ -13,101 +14,99 @@ class FavoritesPresenter : FavoritesContract.Presenter {
     private val favoriteFirebaseService = FavoriteFirebaseService()
     private val cocktailRepository = CocktailRepository()
     private val auth = FirebaseAuth.getInstance()
-    private val presenterScope = CoroutineScope(Dispatchers.Main + Job())
+    private var presenterJob: Job? = null
     private val TAG = "FavoritesPresenter"
+
+    private var cachedFavorites: List<Cocktail>? = null
+    private var isLoading = false
 
     override fun setView(view: FavoritesContract.View?) {
         this.view = view
-        // Load favorites when view is set
-        if (view != null) {
-            loadFavorites()
+        // Show cached data only if we're not currently loading
+        if (!isLoading) {
+            cachedFavorites?.let { favorites ->
+                view?.displayFavorites(favorites)
+            }
         }
     }
 
     override fun onStart() {
-        // Called when the presenter starts
+        if (cachedFavorites == null) {
+            loadFavorites()
+        }
     }
 
     override fun onStop() {
-        presenterScope.cancel() // Cancel all coroutines when stopping
+        // Cancel only the current loading job if any
+        presenterJob?.cancel()
+        presenterJob = null
         view = null
     }
 
     override fun loadFavorites() {
+        // Prevent multiple simultaneous loads
+        if (isLoading) return
+
+        isLoading = true
         view?.displayLoading(true)
 
-        // Get current user
         val currentUser = auth.currentUser
         if (currentUser == null) {
             Log.d(TAG, "loadFavorites: No current user found")
-            view?.displayLoading(false)
-            view?.displayEmptyState()
+            handleNoUser()
+            isLoading = false
             return
         }
 
         Log.d(TAG, "loadFavorites: Loading favorites for user ${currentUser.uid}")
 
-        presenterScope.launch {
+        // Cancel any existing job before starting a new one
+        presenterJob?.cancel()
+
+        presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
-                // Get user's favorites from Firebase
-                Log.d(TAG, "loadFavorites: Fetching favorites from Firebase")
                 val favoritesResult = withContext(Dispatchers.IO) {
-                    try {
-                        favoriteFirebaseService.getUserFavorites(currentUser.uid)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error fetching favorites: ${e.message}", e)
-                        Result.failure(e)
-                    }
+                    favoriteFirebaseService.getUserFavorites(currentUser.uid)
                 }
 
                 if (favoritesResult.isSuccess) {
-                    val favorites = favoritesResult.getOrNull() ?: emptyList()
-                    Log.d(TAG, "loadFavorites: Found ${favorites.size} favorites")
-
-                    if (favorites.isNotEmpty()) {
-                        // Fetch all cocktail details in parallel using async/await
-                        val deferredCocktails = favorites.map { favorite ->
-                            async(Dispatchers.IO) {
-                                Log.d(TAG, "loadFavorites: Fetching cocktail details for ID: ${favorite.cocktailId}")
-                                cocktailRepository.getCocktailById(favorite.cocktailId)
-                            }
+                    val favorites: List<Favorite> = favoritesResult.getOrNull() ?: emptyList()
+                    val cocktails = withContext(Dispatchers.IO) {
+                        favorites.mapNotNull { favorite ->
+                            cocktailRepository.getCocktailById(favorite.cocktailId)
                         }
+                    }
 
-                        // Wait for all requests to complete
-                        val cocktails = deferredCocktails.awaitAll().filterNotNull()
-
-                        Log.d(TAG, "loadFavorites: Successfully fetched ${cocktails.size} cocktails")
-                        if (cocktails.isNotEmpty()) {
-                            view?.displayLoading(false)
-                            view?.displayFavorites(cocktails)
-                        } else {
-                            Log.d(TAG, "loadFavorites: No cocktails found for favorites, showing empty state")
-                            view?.displayLoading(false)
-                            view?.displayEmptyState()
-                        }
-                    } else {
-                        Log.d(TAG, "loadFavorites: No favorites found, showing empty state")
-                        view?.displayLoading(false)
+                    cachedFavorites = cocktails
+                    view?.displayLoading(false)
+                    if (cocktails.isEmpty()) {
                         view?.displayEmptyState()
+                    } else {
+                        view?.displayFavorites(cocktails)
                     }
                 } else {
-                    val exception = favoritesResult.exceptionOrNull()
-                    Log.e(TAG, "Failed to load favorites: ${exception?.message}", exception)
-                    view?.displayLoading(false)
-                    view?.displayError("Failed to load favorites: ${exception?.message ?: "Unknown error"}")
+                    throw favoritesResult.exceptionOrNull() ?: Exception("Failed to load favorites")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Exception in loadFavorites: ${e.message}", e)
+                Log.e(TAG, "Error loading favorites", e)
                 view?.displayLoading(false)
-                view?.displayError("An error occurred: ${e.message}")
+                view?.displayError("Failed to load favorites: ${e.message}")
+            } finally {
+                isLoading = false
             }
         }
+    }
+
+    private fun handleNoUser() {
+        view?.displayLoading(false)
+        view?.displayEmptyState()
+        view?.displayError("Please sign in to view favorites")
     }
 
     override fun addToFavorites(cocktail: Cocktail) {
         val currentUser = auth.currentUser ?: return
 
-        presenterScope.launch {
+        presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 // Add to favorites directly without checking or saving cocktail
                 val result = withContext(Dispatchers.IO) {
@@ -130,7 +129,7 @@ class FavoritesPresenter : FavoritesContract.Presenter {
     override fun removeFromFavorites(cocktail: Cocktail) {
         val currentUser = auth.currentUser ?: return
 
-        presenterScope.launch {
+        presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 // Get the favorite document
                 val favoriteResult = withContext(Dispatchers.IO) {
@@ -162,7 +161,7 @@ class FavoritesPresenter : FavoritesContract.Presenter {
     override fun toggleFavorite(cocktail: Cocktail) {
         val currentUser = auth.currentUser ?: return
 
-        presenterScope.launch {
+        presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 // Check if the cocktail is already a favorite
                 val isFavorite = withContext(Dispatchers.IO) {
