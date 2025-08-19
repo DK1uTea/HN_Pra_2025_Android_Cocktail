@@ -56,6 +56,7 @@ class SignUpActivity : BaseActivity<ActivitySignUpBinding>(), AuthContract.View 
     }
 
     override fun onLoginSuccess() {
+        showMessage(getString(R.string.Welcome))
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }
