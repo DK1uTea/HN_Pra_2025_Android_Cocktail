@@ -23,6 +23,7 @@ class StartActivity : AppCompatActivity() {
         val authRepository = AuthRepository(this)
         if (authRepository.isUserLoggedIn()) {
             startActivity(Intent(this, MainActivity::class.java))
+            Toast.makeText(this, getString(R.string.Welcome_back), Toast.LENGTH_SHORT).show()
             finish()
             return
         }

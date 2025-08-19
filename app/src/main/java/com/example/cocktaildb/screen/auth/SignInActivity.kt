@@ -67,6 +67,7 @@ class SignInActivity : BaseActivity<ActivityLoginBinding>(), AuthContract.View {
     }
 
     override fun onLoginSuccess() {
+        showMessage(getString(R.string.Welcome_back))
         val intent = Intent(this, MainActivity::class.java)
         startActivity(intent)
         finish()
