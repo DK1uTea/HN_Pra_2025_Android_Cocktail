@@ -1,7 +1,6 @@
 package com.example.cocktaildb.screen.auth
 
 import android.content.Intent
-import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.example.cocktaildb.MainActivity
@@ -9,6 +8,7 @@ import com.example.cocktaildb.R
 import com.example.cocktaildb.data.repository.AuthRepository
 import com.example.cocktaildb.databinding.ActivityLoginBinding
 import com.example.cocktaildb.utils.base.BaseActivity
+import com.google.firebase.auth.FirebaseAuth
 
 class SignInActivity : BaseActivity<ActivityLoginBinding>(), AuthContract.View {
 
@@ -67,7 +67,12 @@ class SignInActivity : BaseActivity<ActivityLoginBinding>(), AuthContract.View {
     }
 
     override fun onLoginSuccess() {
-        showMessage(getString(R.string.Welcome_back))
+        val displayName = FirebaseAuth.getInstance().currentUser?.displayName
+        if (!displayName.isNullOrBlank()) {
+            showMessage(getString(R.string.Welcome_back) + ", " + displayName)
+        } else {
+            showMessage(getString(R.string.Welcome_back))
+        }
         val intent = Intent(this, MainActivity::class.java)
         startActivity(intent)
         finish()

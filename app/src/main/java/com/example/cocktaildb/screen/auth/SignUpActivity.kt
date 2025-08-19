@@ -8,6 +8,7 @@ import com.example.cocktaildb.R
 import com.example.cocktaildb.data.repository.AuthRepository
 import com.example.cocktaildb.databinding.ActivitySignUpBinding
 import com.example.cocktaildb.utils.base.BaseActivity
+import com.google.firebase.auth.FirebaseAuth
 
 class SignUpActivity : BaseActivity<ActivitySignUpBinding>(), AuthContract.View {
 
@@ -56,7 +57,12 @@ class SignUpActivity : BaseActivity<ActivitySignUpBinding>(), AuthContract.View 
     }
 
     override fun onLoginSuccess() {
-        showMessage(getString(R.string.Welcome))
+        val displayName = FirebaseAuth.getInstance().currentUser?.displayName
+        if (!displayName.isNullOrBlank()) {
+            showMessage(getString(R.string.Welcome) + ", " + displayName)
+        } else {
+            showMessage(getString(R.string.Welcome))
+        }
         startActivity(Intent(this, MainActivity::class.java))
         finish()
     }

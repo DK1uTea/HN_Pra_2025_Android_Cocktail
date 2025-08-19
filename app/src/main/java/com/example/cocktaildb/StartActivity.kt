@@ -10,6 +10,7 @@ import com.example.cocktaildb.screen.auth.SignInActivity
 import android.view.animation.AnimationUtils
 import com.example.cocktaildb.data.repository.AuthRepository
 
+import com.google.firebase.auth.FirebaseAuth
 class StartActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityStartBinding
@@ -23,7 +24,12 @@ class StartActivity : AppCompatActivity() {
         val authRepository = AuthRepository(this)
         if (authRepository.isUserLoggedIn()) {
             startActivity(Intent(this, MainActivity::class.java))
-            Toast.makeText(this, getString(R.string.Welcome_back), Toast.LENGTH_SHORT).show()
+            val name = FirebaseAuth.getInstance().currentUser?.displayName
+            if (!name.isNullOrBlank()) {
+                Toast.makeText(this, getString(R.string.Welcome_back) + ", " + name, Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, getString(R.string.Welcome_back), Toast.LENGTH_SHORT).show()
+            }
             finish()
             return
         }
