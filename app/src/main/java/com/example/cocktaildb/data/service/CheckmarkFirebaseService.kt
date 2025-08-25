@@ -94,4 +94,18 @@ class CheckmarkFirebaseService {
             Result.failure(e)
         }
     }
+
+    suspend fun clearUserCheckmarks(uid: String): Result<Unit> {
+        return try {
+            val querySnapshot = checkmarksCollection
+                .whereEqualTo("uid", uid)
+                .get().await()
+            for (document in querySnapshot.documents) {
+                document.reference.delete().await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

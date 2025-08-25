@@ -76,7 +76,7 @@ class FavoritesPresenter(
         presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 val favoritesResult = withContext(Dispatchers.IO) {
-                    favoriteFirebaseService.getUserFavorites(uid)
+                    cocktailRepository.getUserFavoritesFromFirebase(uid)
                 }
 
                 if (favoritesResult.isSuccess) {
@@ -86,7 +86,7 @@ class FavoritesPresenter(
                             cocktailRepository.getCocktailById(favorite.cocktailId)
                         }
                     }
-                    val localFavorites = getFavoritesFromLocal()
+                    val localFavorites = cocktailRepository.getFavoritesFromLocal(context)
                     val mergedFavorites = mutableListOf<Cocktail>()
                     val firebaseIds = firebaseCocktails.map { it.idDrink }.toSet()
                     mergedFavorites.addAll(firebaseCocktails)
@@ -95,7 +95,7 @@ class FavoritesPresenter(
                     mergedFavorites.addAll(localOnlyFavorites)
 
                     val finalFavorites = deduplicateFavorites(mergedFavorites)
-                    saveFavoritesToLocal(finalFavorites)
+                    cocktailRepository.saveFavoritesToLocal(context, finalFavorites)
                     cachedFavorites = finalFavorites
                     view?.displayLoading(false)
                     if (finalFavorites.isEmpty()) {
@@ -119,7 +119,7 @@ class FavoritesPresenter(
 
     private fun loadFromLocalOnly() {
         try {
-            val favorites = getFavoritesFromLocal()
+            val favorites = cocktailRepository.getFavoritesFromLocal(context)
             cachedFavorites = favorites
             view?.displayLoading(false)
             if (favorites.isEmpty()) {
@@ -311,7 +311,7 @@ class FavoritesPresenter(
 
     override fun toggleFavorite(cocktail: Cocktail) {
         presenterJob = CoroutineScope(Dispatchers.Main).launch {
-            FavoritesManager.toggleFavoriteOfflineAware(context, cocktail) {
+            cocktailRepository.toggleFavorite(context, cocktail) {
                 loadFavorites()
             }
         }
@@ -322,14 +322,10 @@ class FavoritesPresenter(
         presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 val currentUser = auth.currentUser
-                val prefs = context.getSharedPreferences(FAVORITES_PREFS, Context.MODE_PRIVATE)
-                prefs.edit().clear().apply()
+                cocktailRepository.clearAllFavorites(context)
 
                 if (currentUser != null) {
-                    val result = withContext(Dispatchers.IO) {
-                        favoriteFirebaseService.clearUserFavorites(currentUser.uid)
-                    }
-
+                    val result = cocktailRepository.clearAllFavoritesFromFirebase(currentUser.uid)
                     if (result.isSuccess) {
                         Log.d(TAG, "Cleared all favorites from Firebase and local storage")
                         view?.showSyncStatus("All favorites cleared")
@@ -343,7 +339,6 @@ class FavoritesPresenter(
                 }
                 cachedFavorites = emptyList()
                 view?.displayEmptyState()
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error clearing favorites", e)
                 view?.displayError("Error clearing favorites: ${e.message}")

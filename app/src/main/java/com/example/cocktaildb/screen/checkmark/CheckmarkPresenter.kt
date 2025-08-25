@@ -5,7 +5,6 @@ import android.util.Log
 import com.example.cocktaildb.data.manager.CheckmarkManager
 import com.example.cocktaildb.data.model.Cocktail
 import com.example.cocktaildb.data.repository.CocktailRepository
-import com.example.cocktaildb.data.service.CheckmarkFirebaseService
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.*
 
@@ -15,7 +14,6 @@ class CheckmarkPresenter(
 ) : CheckmarkContract.Presenter {
 
     private var view: CheckmarkContract.View? = null
-    private val checkmarkFirebaseService = CheckmarkFirebaseService()
     private val auth = FirebaseAuth.getInstance()
     private var presenterJob: Job? = null
     private val TAG = "CheckmarkPresenter"
@@ -75,7 +73,7 @@ class CheckmarkPresenter(
         presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 val checkmarksResult = withContext(Dispatchers.IO) {
-                    checkmarkFirebaseService.getUserCheckmarks(uid)
+                    cocktailRepository.getUserCheckmarksFromFirebase(uid)
                 }
 
                 if (checkmarksResult.isSuccess) {
@@ -85,7 +83,7 @@ class CheckmarkPresenter(
                             cocktailRepository.getCocktailById(checkmark.cocktailId)
                         }
                     }
-                    val localCheckmarks = getCheckmarksFromLocal()
+                    val localCheckmarks = cocktailRepository.getCheckmarksFromLocal(context)
                     val mergedCheckmarks = mutableListOf<Cocktail>()
                     val firebaseIds = firebaseCocktails.map { it.idDrink }.toSet()
                     mergedCheckmarks.addAll(firebaseCocktails)
@@ -94,7 +92,7 @@ class CheckmarkPresenter(
                     mergedCheckmarks.addAll(localOnlyCheckmarks)
 
                     val finalCheckmarks = deduplicateCheckmarks(mergedCheckmarks)
-                    saveCheckmarksToLocal(finalCheckmarks)
+                    cocktailRepository.saveCheckmarksToLocal(context, finalCheckmarks)
                     cachedCheckmarks = finalCheckmarks
                     view?.displayLoading(false)
                     view?.displayCheckmarks(finalCheckmarks)
@@ -112,55 +110,11 @@ class CheckmarkPresenter(
     }
 
     private fun loadFromLocalOnly() {
-        val localCheckmarks = getCheckmarksFromLocal()
+        val localCheckmarks = cocktailRepository.getCheckmarksFromLocal(context)
         cachedCheckmarks = localCheckmarks
         view?.displayLoading(false)
         view?.displayCheckmarks(localCheckmarks)
         isLoading = false
-    }
-
-    private fun getCheckmarksFromLocal(): List<Cocktail> {
-        return try {
-            val prefs = context.getSharedPreferences(CHECKMARKS_PREFS, Context.MODE_PRIVATE)
-            val checkmarksString = prefs.getString(CHECKMARKS_KEY, "")
-            if (checkmarksString.isNullOrEmpty()) {
-                emptyList()
-            } else {
-                checkmarksString.split(SEPARATOR).mapNotNull { cocktailString ->
-                    if (cocktailString.isNotEmpty()) {
-                        try {
-                            val fields = cocktailString.split(FIELD_SEPARATOR)
-                            if (fields.size >= 4) {
-                                Cocktail(
-                                    idDrink = fields[0],
-                                    strDrink = fields[1],
-                                    strDrinkThumb = fields[2],
-                                    strCategory = fields[3]
-                                )
-                            } else null
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Error parsing cocktail from local storage", e)
-                            null
-                        }
-                    } else null
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error getting checkmarks from local storage", e)
-            emptyList()
-        }
-    }
-
-    private fun saveCheckmarksToLocal(checkmarks: List<Cocktail>) {
-        try {
-            val prefs = context.getSharedPreferences(CHECKMARKS_PREFS, Context.MODE_PRIVATE)
-            val checkmarksString = checkmarks.joinToString(SEPARATOR) { cocktail ->
-                "${cocktail.idDrink}${FIELD_SEPARATOR}${cocktail.strDrink}${FIELD_SEPARATOR}${cocktail.strDrinkThumb}${FIELD_SEPARATOR}${cocktail.strCategory}"
-            }
-            prefs.edit().putString(CHECKMARKS_KEY, checkmarksString).apply()
-        } catch (e: Exception) {
-            Log.e(TAG, "Error saving checkmarks to local storage", e)
-        }
     }
 
     private fun deduplicateCheckmarks(checkmarks: List<Cocktail>): List<Cocktail> {
@@ -182,7 +136,7 @@ class CheckmarkPresenter(
         presenterJob = CoroutineScope(Dispatchers.Main).launch {
             try {
                 val result = withContext(Dispatchers.IO) {
-                    checkmarkFirebaseService.addCheckmark(currentUser.uid, cocktail.idDrink)
+                    cocktailRepository.addCheckmarkToFirebase(currentUser.uid, cocktail.idDrink)
                 }
 
                 if (result.isSuccess) {
@@ -206,7 +160,7 @@ class CheckmarkPresenter(
     private fun addToLocalCheckmarks(cocktail: Cocktail) {
         if (!cachedCheckmarks.any { it.idDrink == cocktail.idDrink }) {
             cachedCheckmarks = cachedCheckmarks + cocktail
-            saveCheckmarksToLocal(cachedCheckmarks)
+            cocktailRepository.saveCheckmarksToLocal(context, cachedCheckmarks)
         }
     }
 
@@ -219,9 +173,9 @@ class CheckmarkPresenter(
             try {
                 val currentUser = auth.currentUser
                 if (currentUser == null) {
-                    val localCheckmarks = getCheckmarksFromLocal().toMutableList()
+                    val localCheckmarks = cocktailRepository.getCheckmarksFromLocal(context).toMutableList()
                     localCheckmarks.removeAll { it.idDrink == cocktail.idDrink }
-                    saveCheckmarksToLocal(localCheckmarks)
+                    cocktailRepository.saveCheckmarksToLocal(context, localCheckmarks)
                     cachedCheckmarks = localCheckmarks
                     if (localCheckmarks.isEmpty()) {
                         view?.displayEmptyState()
@@ -233,13 +187,13 @@ class CheckmarkPresenter(
                 }
 
                 val result = withContext(Dispatchers.IO) {
-                    checkmarkFirebaseService.removeCheckmark(currentUser.uid, cocktail.idDrink)
+                    cocktailRepository.removeCheckmarkFromFirebase(currentUser.uid, cocktail.idDrink)
                 }
 
                 if (result.isSuccess) {
-                    val localCheckmarks = getCheckmarksFromLocal().toMutableList()
+                    val localCheckmarks = cocktailRepository.getCheckmarksFromLocal(context).toMutableList()
                     localCheckmarks.removeAll { it.idDrink == cocktail.idDrink }
-                    saveCheckmarksToLocal(localCheckmarks)
+                    cocktailRepository.saveCheckmarksToLocal(context, localCheckmarks)
 
                     cachedCheckmarks = localCheckmarks
                     if (localCheckmarks.isEmpty()) {
@@ -259,8 +213,6 @@ class CheckmarkPresenter(
             }
         }
     }
-
-
 
     override fun toggleCheckmark(cocktail: Cocktail) {
         if (cachedCheckmarks.any { it.idDrink == cocktail.idDrink }) {
@@ -284,14 +236,14 @@ class CheckmarkPresenter(
             presenterJob = CoroutineScope(Dispatchers.Main).launch {
                 try {
                     val checkmarks = withContext(Dispatchers.IO) {
-                        checkmarkFirebaseService.getUserCheckmarks(currentUser.uid)
+                        cocktailRepository.getUserCheckmarksFromFirebase(currentUser.uid)
                     }
 
                     if (checkmarks.isSuccess) {
                         val userCheckmarks = checkmarks.getOrNull() ?: emptyList()
                         userCheckmarks.forEach { checkmark ->
                             withContext(Dispatchers.IO) {
-                                checkmarkFirebaseService.removeCheckmark(currentUser.uid, checkmark.cocktailId)
+                                cocktailRepository.removeCheckmarkFromFirebase(currentUser.uid, checkmark.cocktailId)
                             }
                         }
                     }
@@ -302,8 +254,7 @@ class CheckmarkPresenter(
         }
 
         cachedCheckmarks = emptyList()
-        saveCheckmarksToLocal(emptyList())
+        cocktailRepository.saveCheckmarksToLocal(context, emptyList())
         view?.displayCheckmarks(emptyList())
     }
-} 
-
+}
