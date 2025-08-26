@@ -7,7 +7,7 @@ import com.example.cocktaildb.data.repository.CocktailRepository
 import com.google.firebase.firestore.FirebaseFirestore
 
 
-class ProfilePresenter(
+open class ProfilePresenter(
     private val cocktailRepository: CocktailRepository,
     private val authRepository: AuthRepository
 ) : ProfileContract.Presenter {
@@ -140,7 +140,7 @@ class ProfilePresenter(
         view?.navigateToLogin()
     }
 
-    private fun loadData() {
+    open fun loadData() {
         loadUserProfile()
         loadUserCocktails()
     }
